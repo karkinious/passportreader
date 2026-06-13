@@ -25,7 +25,10 @@ A local, offline command-line application for generating IMO Crew Lists from pas
    ```bash
    python main.py
    ```
-   *Note: On the first run, the app will automatically check for and install required Python dependencies from `requirements.txt`. It will also download the necessary local OCR model files (approx. 20-50MB).*
+   *Note: On the first run, the app will automatically:*
+   - *Check for and install required Python dependencies from `requirements.txt`.*
+   - *Create default folders: `passports/` (for your scans) and `export/` (for generated Excel files).*
+   - *Download necessary local OCR model files (approx. 20-50MB).*
 
 ## Usage
 
