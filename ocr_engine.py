@@ -54,7 +54,7 @@ class OCREngine:
     def _parse_ocr_results(self, results):
         """Extracts MRZ lines and other potential data from PaddleOCR results."""
         # result format: [ [[box], (text, confidence)], ... ]
-        lines = [line[1][0].replace(' ', '') for line in results]
+        lines = [line[1][0].upper().replace(' ', '') for line in results]
         confidences = [line[1][1] for line in results]
 
         mrz_lines = []
@@ -62,6 +62,7 @@ class OCREngine:
 
         for i, line in enumerate(lines):
             # MRZ lines are typically 30, 36, or 44 characters long and contain many '<'
+            # Enhanced detection: MRZ lines usually have a specific structure
             if line.count('<') > 5 or (len(line) in [30, 36, 44] and any(c.isdigit() for c in line) and '<' in line):
                 mrz_lines.append(line)
                 mrz_confidences.append(confidences[i])
@@ -74,13 +75,7 @@ class OCREngine:
         }
 
         if mrz_lines:
-            # Clean MRZ lines (sometimes OCR adds noise at the end)
-            cleaned_mrz_lines = []
-            for line in mrz_lines:
-                # Keep only alphanumeric and '<'
-                cleaned = ''.join(c for c in line if c.isalnum() or c == '<')
-                cleaned_mrz_lines.append(cleaned)
-
+            cleaned_mrz_lines = [self._clean_mrz_line(line) for line in mrz_lines]
             mrz_text = "\n".join(cleaned_mrz_lines)
 
             # Try parsing with different checkers
@@ -95,6 +90,36 @@ class OCREngine:
                     continue
 
         return extracted_data
+
+    def _clean_mrz_line(self, line):
+        """Applies fuzzy logic to correct common OCR errors in MRZ lines."""
+        # Keep only alphanumeric and '<'
+        cleaned = ''.join(c for c in line if c.isalnum() or c == '<')
+        
+        # If the line ends with a lot of noise, truncate to valid MRZ lengths
+        if len(cleaned) > 44: cleaned = cleaned[:44]
+        elif 36 < len(cleaned) < 44: cleaned = cleaned[:36]
+        elif 30 < len(cleaned) < 36: cleaned = cleaned[:30]
+
+        # Fuzzy corrections for common substitutions in numeric areas
+        # This is a general sweep - professional MRZ checkers do this per-field
+        # We target fields like DOB and Expiry which are highly sensitive to O vs 0
+        
+        # If it looks like a TD3 second line (starts with document number + check digit + nationality)
+        # We can apply some heuristics. For now, let's do common swaps if they appear in numeric-heavy zones.
+        if len(cleaned) == 44 and cleaned[0].isalnum():
+             # TD3 Line 2: [0:9]Doc, [9]CD, [10:13]Nat, [13:19]DOB, [19]CD, [20]Sex, [21:27]Exp, [27]CD...
+             list_line = list(cleaned)
+             # Fix DOB [13:19] and Exp [21:27]
+             for i in range(13, 19):
+                 if list_line[i] == 'O': list_line[i] = '0'
+                 if list_line[i] == 'I': list_line[i] = '1'
+             for i in range(21, 27):
+                 if list_line[i] == 'O': list_line[i] = '0'
+                 if list_line[i] == 'I': list_line[i] = '1'
+             cleaned = "".join(list_line)
+
+        return cleaned
 
     def _format_checker_fields(self, fields):
         return {
