@@ -31,9 +31,17 @@ def check_dependencies():
             print(f"Error installing dependencies: {e}")
             sys.exit(1)
 
+def init_folders():
+    """Creates default folders if they don't exist."""
+    for folder in ['passports', 'export']:
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+            print(f"Created folder: {folder}")
+
 # Run check before other imports that might fail
 if __name__ == '__main__':
     check_dependencies()
+    init_folders()
 
 # These imports are here to avoid failing if dependencies are missing during the check above
 from ocr_engine import OCREngine
@@ -92,7 +100,8 @@ class CrewListApp:
         input("\nSaved. Press Enter to continue...")
 
     def process_folder(self):
-        folder = input("\nEnter path to folder with passport scans: ")
+        default_folder = 'passports'
+        folder = input(f"\nEnter path to folder with passport scans [{default_folder}]: ") or default_folder
         if not os.path.isdir(folder):
             print("Invalid directory.")
             input("Press Enter...")

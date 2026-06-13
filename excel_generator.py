@@ -67,9 +67,10 @@ class ExcelGenerator:
         ship_name_clean = "".join(x for x in voyage_info.get('ship_name', 'Ship') if x.isalnum())
         arr_dep = voyage_info.get('arrival_departure', 'Arrival')
         output_filename = f"CrewList_{ship_name_clean}_{arr_dep}.xlsx"
+        output_path = os.path.join('export', output_filename)
 
-        wb.save(output_filename)
-        return output_filename
+        wb.save(output_path)
+        return output_path
 
 if __name__ == '__main__':
     print("Excel Generator ready.")
