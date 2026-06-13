@@ -17,21 +17,17 @@ A local, offline command-line application for generating IMO Crew Lists from pas
 - **MacOS (Recommended)** or **Windows**
 - **Tesseract (Optional)**: PaddleOCR comes with its own engines, but ensure you have `pip` installed to manage dependencies.
 
-## Installation
+## Installation & Setup
 
 1. **Clone the repository** (or copy the files to your local machine).
-2. **Install dependencies**:
+2. **Ensure Python 3.8+ is installed**.
+3. **Run the application**:
    ```bash
-   pip install -r requirements.txt
+   python main.py
    ```
-   *Note: On first run, PaddleOCR will download the necessary local model files (approx. 20-50MB).*
+   *Note: On the first run, the app will automatically check for and install required Python dependencies from `requirements.txt`. It will also download the necessary local OCR model files (approx. 20-50MB).*
 
 ## Usage
-
-Run the application using:
-```bash
-python main.py
-```
 
 ### Main Menu Options
 
