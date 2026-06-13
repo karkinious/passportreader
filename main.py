@@ -1,6 +1,41 @@
 import os
 import sys
 import subprocess
+import importlib.util
+
+def check_dependencies():
+    """Checks if all requirements are installed, installs them if missing."""
+    # List of (import_name, package_name)
+    dependencies = [
+        ("paddleocr", "paddleocr"),
+        ("paddle", "paddlepaddle"),
+        ("openpyxl", "openpyxl"),
+        ("mrz", "mrz"),
+        ("fitz", "pymupdf"),
+        ("PIL", "pillow")
+    ]
+
+    missing = []
+    for import_name, package_name in dependencies:
+        if importlib.util.find_spec(import_name) is None:
+            missing.append(package_name)
+
+    if missing:
+        print(f"Missing dependencies: {', '.join(missing)}")
+        print("Installing requirements from requirements.txt...")
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
+            print("\nDependencies installed successfully. Please restart the application.")
+            sys.exit(0)
+        except Exception as e:
+            print(f"Error installing dependencies: {e}")
+            sys.exit(1)
+
+# Run check before other imports that might fail
+if __name__ == '__main__':
+    check_dependencies()
+
+# These imports are here to avoid failing if dependencies are missing during the check above
 from ocr_engine import OCREngine
 from crew_manager import CrewManager
 from database import init_db
@@ -200,5 +235,6 @@ class CrewListApp:
         input("Press Enter...")
 
 if __name__ == '__main__':
+    # check_dependencies() is already called above
     app = CrewListApp()
     app.main_menu()

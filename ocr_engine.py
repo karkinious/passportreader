@@ -16,7 +16,7 @@ class OCREngine:
     def __init__(self):
         # Initialize PaddleOCR
         # Updated parameters based on the latest PaddleOCR version
-        self.ocr = PaddleOCR(use_textline_orientation=True, lang='en', show_log=False)
+        self.ocr = PaddleOCR(use_textline_orientation=True, lang='en')
 
     def process_file(self, file_path):
         """Processes an image or PDF and returns extracted data."""
