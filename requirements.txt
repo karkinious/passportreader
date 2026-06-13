@@ -1,0 +1,6 @@
+paddleocr
+paddlepaddle
+openpyxl
+mrz
+pymupdf
+pillow
