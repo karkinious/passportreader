@@ -4,10 +4,13 @@ import re
 def parse_date(date_str):
     """
     Parses various date formats into ISO YYYY-MM-DD.
-    Supported: DDMMYYYY, DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD
+    Supported: DDMMYYYY, DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD, or "N/A"
     """
     if not date_str:
         return None
+
+    if date_str.strip().upper() == 'N/A':
+        return 'N/A'
     
     # Remove separators for easier parsing if it matches DDMMYYYY
     clean_date = re.sub(r'[-/.\s]', '', date_str)
