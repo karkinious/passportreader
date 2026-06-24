@@ -9,8 +9,8 @@ def parse_date(date_str):
     if not date_str:
         return None
 
-    if date_str.strip().upper() == 'N/A':
-        return 'N/A'
+    if date_str.strip().upper() in ['N/A', 'PERMANENT']:
+        return date_str.strip().upper()
     
     # Remove separators for easier parsing if it matches DDMMYYYY
     clean_date = re.sub(r'[-/.\s]', '', date_str)
