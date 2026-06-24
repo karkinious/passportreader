@@ -6,10 +6,10 @@ A local, offline command-line application for generating IMO Crew Lists from pas
 
 - **Offline OCR**: Uses PaddleOCR to extract data from passport images and PDFs without requiring an internet connection.
 - **MRZ Parsing & Fuzzy Correction**: Automatically parses the Machine Readable Zone (MRZ). Includes fuzzy logic to correct common OCR character substitutions (e.g., 'O' for '0' in dates) before parsing.
-- **Strict Data Validation**: Enforces standardized date formats (DDMMYYYY/ISO), Sex (M/F), and Nationality (ISO 3-letter codes) during entry and editing.
+- **Strict Data Validation**: Enforces standardized date formats (DDMMYYYY/ISO), Sex (M/F), and Nationality (ISO 3-letter codes). Supports "N/A" for expiry dates where applicable.
 - **Manual Verification**: Forces a manual review of OCR results against the original scan for 100% accuracy.
-- **Auto-Numbering with Insert-and-Shift**: Automatically generates crew numbers. If you insert a member at an existing position, all subsequent members are automatically renumbered.
-- **Excel Generation**: Populates a standardized `TEMPLATE.xlsx` to generate official IMO Crew Lists with properly formatted dates.
+- **Auto-Numbering with Insert-and-Shift**: Automatically generates crew numbers. If you insert a member at an existing position, all subsequent members are automatically renumbered to maintain a unique sequence.
+- **Excel Generation**: Populates a standardized `TEMPLATE.xlsx` starting from row 9, with automatic cell unmerging and re-merging to ensure data (like Birth Date and Place) fits the official layout perfectly.
 - **Persistence**: Saves all voyage and crew data in a local SQLite database using ISO date standards.
 
 ## Prerequisites
@@ -41,11 +41,14 @@ A local, offline command-line application for generating IMO Crew Lists from pas
    - The app will OCR each file and **open the image** using your system's default viewer.
    - You will be prompted to confirm or edit each extracted field.
    - Fields not in the MRZ (like Rank or Seaman's Book) will be requested manually.
-3. **Add Crew Member Manually**: Add a member without a scan.
+3. **Add Crew Member**:
+   - **Insert Mode**: Add a new member and shift existing ones down.
+   - **Replace Mode**: Overwrite an existing entry with new data.
+   - Support for both **From Scan (OCR)** with file selection and **Manual Entry**.
 4. **View/Edit/Remove Crew Members**:
-   - Lists all current members.
+   - Lists all current members with explicit UI feedback and confirmation prompts.
    - Use `e [No.]` to edit a member (e.g., `e 5`).
-   - Use `r [No.]` to remove a member.
+   - Use `r [No.]` to remove a member with automatic re-ordering.
 5. **Generate Excel Crew List**: Creates an Excel file named `CrewList_[ShipName]_[Arrival/Departure].xlsx`.
 
 ## Project Structure
