@@ -50,8 +50,9 @@ class ExcelGenerator:
             row = start_row + i
 
             # Unmerge cells for birth and joining if they are merged in the template
-            # (H-I) and (K-L)
-            self._safe_unmerge(sheet, row, 8, row, 9)
+            # Birth: (I-J) - Columns 9 and 10
+            # Joining: (K-L) - Columns 11 and 12
+            self._safe_unmerge(sheet, row, 9, row, 10)
             self._safe_unmerge(sheet, row, 11, row, 12)
 
             sheet.cell(row=row, column=1).value = m.get('crew_number')
@@ -60,8 +61,8 @@ class ExcelGenerator:
             sheet.cell(row=row, column=4).value = m.get('rank')
             sheet.cell(row=row, column=5).value = m.get('sex')
             sheet.cell(row=row, column=6).value = m.get('nationality')
-            sheet.cell(row=row, column=8).value = utils.format_date_display(m.get('date_of_birth'))
-            sheet.cell(row=row, column=9).value = m.get('place_of_birth')
+            sheet.cell(row=row, column=9).value = utils.format_date_display(m.get('date_of_birth'))
+            sheet.cell(row=row, column=10).value = m.get('place_of_birth')
             sheet.cell(row=row, column=11).value = utils.format_date_display(m.get('joining_date'))
             sheet.cell(row=row, column=12).value = m.get('joining_place')
 
