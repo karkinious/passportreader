@@ -143,5 +143,14 @@ class CrewManager:
         conn.close()
         return dict(row) if row else {}
 
+    def get_member_by_number(self, crew_number):
+        conn = self.get_conn()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM crew_members WHERE crew_number = ?', (crew_number,))
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row) if row else None
+
 if __name__ == '__main__':
     print("Crew Manager ready.")
