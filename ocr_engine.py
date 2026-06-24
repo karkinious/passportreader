@@ -32,7 +32,8 @@ class OCREngine:
         all_results = []
         for img in images:
             img_np = np.array(img.convert('RGB'))
-            result = self.ocr.ocr(img_np, cls=True)
+            # Removed cls=True as it causes TypeError in some versions of PaddleOCR
+            result = self.ocr.ocr(img_np)
             if result and result[0]:
                 all_results.extend(result[0])
 
