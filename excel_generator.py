@@ -48,6 +48,12 @@ class ExcelGenerator:
         start_row = 10
         for i, m in enumerate(crew_list):
             row = start_row + i
+
+            # Unmerge cells for birth and joining if they are merged in the template
+            # (H-I) and (K-L)
+            self._safe_unmerge(sheet, row, 8, row, 9)
+            self._safe_unmerge(sheet, row, 11, row, 12)
+
             sheet.cell(row=row, column=1).value = m.get('crew_number')
             sheet.cell(row=row, column=2).value = m.get('surname')
             sheet.cell(row=row, column=3).value = m.get('given_names')
@@ -74,6 +80,15 @@ class ExcelGenerator:
 
         wb.save(output_path)
         return output_path
+
+    def _safe_unmerge(self, sheet, r1, c1, r2, c2):
+        """Unmerges a range if it is part of merged cells."""
+        # Check if the cell is part of any merged range
+        target_cell = sheet.cell(row=r1, column=c1).coordinate
+        for merged_range in list(sheet.merged_cells.ranges):
+            if target_cell in merged_range:
+                sheet.unmerge_cells(start_row=r1, start_column=c1, end_row=r2, end_column=c2)
+                break
 
 if __name__ == '__main__':
     print("Excel Generator ready.")
