@@ -2,6 +2,7 @@ import openpyxl
 from openpyxl.styles import Alignment
 import os
 from datetime import datetime
+import utils
 
 class ExcelGenerator:
     def __init__(self, template_path='TEMPLATE.xlsx'):
@@ -53,16 +54,16 @@ class ExcelGenerator:
             sheet.cell(row=row, column=4).value = m.get('rank')
             sheet.cell(row=row, column=5).value = m.get('sex')
             sheet.cell(row=row, column=6).value = m.get('nationality')
-            sheet.cell(row=row, column=8).value = f"{m.get('date_of_birth')} {m.get('place_of_birth')}"
-            sheet.cell(row=row, column=11).value = f"{m.get('joining_date')} {m.get('joining_place')}"
+            sheet.cell(row=row, column=8).value = f"{utils.format_date_display(m.get('date_of_birth'))} {m.get('place_of_birth')}"
+            sheet.cell(row=row, column=11).value = f"{utils.format_date_display(m.get('joining_date'))} {m.get('joining_place')}"
 
             # Seaman's Book in col 13 (Nature and No.) and 14 (Expiry)
             sheet.cell(row=row, column=13).value = m.get('seamans_book_number')
-            sheet.cell(row=row, column=14).value = m.get('seamans_book_expiry')
+            sheet.cell(row=row, column=14).value = utils.format_date_display(m.get('seamans_book_expiry'))
 
             # Passport in col 15 (Nature and No.) and 16 (Expiry)
             sheet.cell(row=row, column=15).value = m.get('passport_number')
-            sheet.cell(row=row, column=16).value = m.get('passport_expiry')
+            sheet.cell(row=row, column=16).value = utils.format_date_display(m.get('passport_expiry'))
 
         ship_name_clean = "".join(x for x in voyage_info.get('ship_name', 'Ship') if x.isalnum())
         arr_dep = voyage_info.get('arrival_departure', 'Arrival')

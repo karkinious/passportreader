@@ -5,11 +5,12 @@ A local, offline command-line application for generating IMO Crew Lists from pas
 ## Features
 
 - **Offline OCR**: Uses PaddleOCR to extract data from passport images and PDFs without requiring an internet connection.
-- **MRZ Parsing**: Automatically parses the Machine Readable Zone (MRZ) of passports for names, passport numbers, nationality, and expiry dates.
+- **MRZ Parsing & Fuzzy Correction**: Automatically parses the Machine Readable Zone (MRZ). Includes fuzzy logic to correct common OCR character substitutions (e.g., 'O' for '0' in dates) before parsing.
+- **Strict Data Validation**: Enforces standardized date formats (DDMMYYYY/ISO), Sex (M/F), and Nationality (ISO 3-letter codes) during entry and editing.
 - **Manual Verification**: Forces a manual review of OCR results against the original scan for 100% accuracy.
 - **Auto-Numbering with Insert-and-Shift**: Automatically generates crew numbers. If you insert a member at an existing position, all subsequent members are automatically renumbered.
-- **Excel Generation**: Populates a standardized `TEMPLATE.xlsx` to generate official IMO Crew Lists.
-- **Persistence**: Saves all voyage and crew data in a local SQLite database.
+- **Excel Generation**: Populates a standardized `TEMPLATE.xlsx` to generate official IMO Crew Lists with properly formatted dates.
+- **Persistence**: Saves all voyage and crew data in a local SQLite database using ISO date standards.
 
 ## Prerequisites
 
@@ -49,10 +50,11 @@ A local, offline command-line application for generating IMO Crew Lists from pas
 
 ## Project Structure
 
-- `main.py`: The entry point and CLI logic.
-- `ocr_engine.py`: Handles PaddleOCR processing and MRZ parsing.
+- `main.py`: The entry point and CLI logic with input validation.
+- `ocr_engine.py`: Handles PaddleOCR processing and fuzzy MRZ parsing.
 - `crew_manager.py`: Manages the SQLite database and crew numbering logic.
-- `excel_generator.py`: Maps data to the `TEMPLATE.xlsx` file.
+- `excel_generator.py`: Maps data to the `TEMPLATE.xlsx` file with formatted output.
+- `utils.py`: Standardized parsing and validation utilities for dates and fields.
 - `database.py`: Database schema initialization.
 - `TEMPLATE.xlsx`: The base Excel template used for generation.
 

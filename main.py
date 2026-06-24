@@ -47,6 +47,7 @@ if __name__ == '__main__':
 from ocr_engine import OCREngine
 from crew_manager import CrewManager
 from database import init_db
+import utils
 
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -64,6 +65,33 @@ class CrewListApp:
         init_db()
         self.cm = CrewManager()
         self.ocr = OCREngine()
+
+    def _get_date_input(self, label, default=""):
+        display_default = utils.format_date_display(default)
+        while True:
+            val = input(f"{label} [{display_default}]: ") or default
+            parsed = utils.parse_date(val)
+            if parsed:
+                return parsed
+            if not val and not default:
+                return ""
+            print("Invalid date format. Please use DDMMYYYY or DD-MM-YYYY.")
+
+    def _get_sex_input(self, default=""):
+        while True:
+            val = input(f"Sex (M/F) [{default}]: ") or default
+            validated = utils.validate_sex(val)
+            if validated:
+                return validated
+            print("Invalid input. Please enter M or F.")
+
+    def _get_nat_input(self, default=""):
+        while True:
+            val = input(f"Nationality (3-letter code) [{default}]: ") or default
+            validated = utils.validate_nationality(val)
+            if validated:
+                return validated
+            print("Invalid input. Please enter a 3-letter country code (e.g., GRC).")
 
     def main_menu(self):
         while True:
@@ -133,15 +161,15 @@ class CrewListApp:
                 'surname': self._verify("Surname", parsed.get('surname', '') if parsed else ''),
                 'given_names': self._verify("Given Names", parsed.get('given_names', '') if parsed else ''),
                 'rank': input("Rank: "),
-                'sex': self._verify("Sex (M/F)", parsed.get('sex', '') if parsed else ''),
-                'nationality': self._verify("Nationality", parsed.get('nationality', '') if parsed else ''),
-                'date_of_birth': self._verify("DOB (DDMMYYYY preferred)", parsed.get('date_of_birth', '') if parsed else ''),
+                'sex': self._get_sex_input(parsed.get('sex', '') if parsed else ''),
+                'nationality': self._get_nat_input(parsed.get('nationality', '') if parsed else ''),
+                'date_of_birth': self._get_date_input("Date of Birth", parsed.get('date_of_birth', '') if parsed else ''),
                 'place_of_birth': input("Place of Birth: "),
                 'passport_number': self._verify("Passport No", parsed.get('passport_number', '') if parsed else ''),
-                'passport_expiry': self._verify("Passport Expiry", parsed.get('passport_expiry', '') if parsed else ''),
+                'passport_expiry': self._get_date_input("Passport Expiry", parsed.get('passport_expiry', '') if parsed else ''),
                 'seamans_book_number': input("Seaman's Book No: "),
-                'seamans_book_expiry': input("Seaman's Book Expiry: "),
-                'joining_date': input("Sign-on Date: "),
+                'seamans_book_expiry': self._get_date_input("Seaman's Book Expiry"),
+                'joining_date': self._get_date_input("Sign-on Date"),
                 'joining_place': input("Sign-on Port: "),
                 'ocr_confidence': str(conf)
             }
@@ -161,15 +189,15 @@ class CrewListApp:
             'surname': input("Surname: "),
             'given_names': input("Given Names: "),
             'rank': input("Rank: "),
-            'sex': input("Sex: "),
-            'nationality': input("Nationality: "),
-            'date_of_birth': input("Date of Birth: "),
+            'sex': self._get_sex_input(),
+            'nationality': self._get_nat_input(),
+            'date_of_birth': self._get_date_input("Date of Birth"),
             'place_of_birth': input("Place of Birth: "),
             'passport_number': input("Passport Number: "),
-            'passport_expiry': input("Passport Expiry: "),
+            'passport_expiry': self._get_date_input("Passport Expiry"),
             'seamans_book_number': input("Seaman's Book No: "),
-            'seamans_book_expiry': input("Seaman's Book Expiry: "),
-            'joining_date': input("Sign-on Date: "),
+            'seamans_book_expiry': self._get_date_input("Seaman's Book Expiry"),
+            'joining_date': self._get_date_input("Sign-on Date"),
             'joining_place': input("Sign-on Port: "),
             'ocr_confidence': "Manual"
         }
@@ -215,15 +243,15 @@ class CrewListApp:
             'surname': input(f"Surname [{m['surname']}]: ") or m['surname'],
             'given_names': input(f"Given Names [{m['given_names']}]: ") or m['given_names'],
             'rank': input(f"Rank [{m['rank']}]: ") or m['rank'],
-            'sex': input(f"Sex [{m['sex']}]: ") or m['sex'],
-            'nationality': input(f"Nationality [{m['nationality']}]: ") or m['nationality'],
-            'date_of_birth': input(f"DOB [{m['date_of_birth']}]: ") or m['date_of_birth'],
+            'sex': self._get_sex_input(m['sex']),
+            'nationality': self._get_nat_input(m['nationality']),
+            'date_of_birth': self._get_date_input("DOB", m['date_of_birth']),
             'place_of_birth': input(f"POB [{m['place_of_birth']}]: ") or m['place_of_birth'],
             'passport_number': input(f"Passport [{m['passport_number']}]: ") or m['passport_number'],
-            'passport_expiry': input(f"Expiry [{m['passport_expiry']}]: ") or m['passport_expiry'],
+            'passport_expiry': self._get_date_input("Passport Expiry", m['passport_expiry']),
             'seamans_book_number': input(f"S-Book [{m['seamans_book_number']}]: ") or m['seamans_book_number'],
-            'seamans_book_expiry': input(f"S-Expiry [{m['seamans_book_expiry']}]: ") or m['seamans_book_expiry'],
-            'joining_date': input(f"Joining Date [{m['joining_date']}]: ") or m['joining_date'],
+            'seamans_book_expiry': self._get_date_input("S-Expiry", m['seamans_book_expiry']),
+            'joining_date': self._get_date_input("Joining Date", m['joining_date']),
             'joining_place': input(f"Joining Place [{m['joining_place']}]: ") or m['joining_place']
         }
         self.cm.update_crew_member(m['id'], data)
