@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 import importlib.util
+import re
 
 def check_dependencies():
     """Checks if all requirements are installed, installs them if missing."""
@@ -155,7 +156,14 @@ class CrewListApp:
             print(f"OCR Confidence: {conf:.2f}")
 
             # Form data
-            crew_num = self.cm.get_next_crew_number()
+            match = re.match(r'^(\d+)', filename)
+            if match:
+                crew_num = match.group(1)
+            else:
+                crew_num = self.cm.get_next_crew_number()
+
+            pob_default = parsed.get('place_of_birth', '') if parsed else ''
+
             data = {
                 'crew_number': input(f"Crew Number [{crew_num}]: ") or crew_num,
                 'surname': self._verify("Surname", parsed.get('surname', '') if parsed else ''),
@@ -164,7 +172,7 @@ class CrewListApp:
                 'sex': self._get_sex_input(parsed.get('sex', '') if parsed else ''),
                 'nationality': self._get_nat_input(parsed.get('nationality', '') if parsed else ''),
                 'date_of_birth': self._get_date_input("Date of Birth", parsed.get('date_of_birth', '') if parsed else ''),
-                'place_of_birth': input("Place of Birth: "),
+                'place_of_birth': input(f"Place of Birth [{pob_default}]: ") or pob_default,
                 'passport_number': self._verify("Passport No", parsed.get('passport_number', '') if parsed else ''),
                 'passport_expiry': self._get_date_input("Passport Expiry", parsed.get('passport_expiry', '') if parsed else ''),
                 'seamans_book_number': input("Seaman's Book No: "),

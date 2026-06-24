@@ -65,6 +65,8 @@ def validate_nationality(nat_str):
     if not nat_str:
         return ""
     nat = nat_str.strip().upper()
+    if nat in ['PLV', 'PLB', 'PH1', 'P1HL']:
+        nat = 'PHL'
     if len(nat) == 3 and nat.isalpha():
         return nat
     return None

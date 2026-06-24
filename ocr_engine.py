@@ -34,8 +34,8 @@ class OCREngine:
             img_np = np.array(img.convert('RGB'))
             # Removed cls=True as it causes TypeError in some versions of PaddleOCR
             result = self.ocr.ocr(img_np)
-            if result and result[0]:
-                all_results.extend(result[0])
+            if result:
+                all_results.extend(self._extract_pairs(result))
 
         return self._parse_ocr_results(all_results)
 
@@ -52,11 +52,37 @@ class OCREngine:
             print(f"Error processing PDF {pdf_path}: {e}")
         return images
 
+    def _extract_pairs(self, data):
+        """
+        Recursively extracts (text, confidence) pairs from PaddleOCR result structure.
+        Handles both dictionary formats (new PaddleOCR/PaddleX) and classic list-of-lists formats.
+        """
+        pairs = []
+        if isinstance(data, dict):
+            if 'rec_texts' in data and 'rec_scores' in data:
+                texts = data['rec_texts']
+                scores = data['rec_scores']
+                if isinstance(texts, list) and isinstance(scores, list):
+                    for t, s in zip(texts, scores):
+                        if isinstance(t, str) and isinstance(s, (int, float)):
+                            pairs.append((t, s))
+            else:
+                for val in data.values():
+                    pairs.extend(self._extract_pairs(val))
+        elif isinstance(data, (list, tuple)):
+            if len(data) == 2 and isinstance(data[1], (list, tuple)) and len(data[1]) == 2 and isinstance(data[1][0], str) and isinstance(data[1][1], (int, float)):
+                pairs.append((data[1][0], data[1][1]))
+            else:
+                for item in data:
+                    pairs.extend(self._extract_pairs(item))
+        return pairs
+
     def _parse_ocr_results(self, results):
         """Extracts MRZ lines and other potential data from PaddleOCR results."""
-        # result format: [ [[box], (text, confidence)], ... ]
-        lines = [line[1][0].upper().replace(' ', '') for line in results]
-        confidences = [line[1][1] for line in results]
+        # results format: list of (text, confidence) tuples
+        lines_with_spaces = [item[0].upper().strip() for item in results if item]
+        lines = [line.replace(' ', '') for line in lines_with_spaces]
+        confidences = [item[1] for item in results]
 
         mrz_lines = []
         mrz_confidences = []
@@ -68,6 +94,22 @@ class OCREngine:
                 mrz_lines.append(line)
                 mrz_confidences.append(confidences[i])
 
+        # Try to correct first line of PHL passports
+        is_phl = False
+        if len(mrz_lines) >= 2 and len(mrz_lines[1]) >= 13 and mrz_lines[1][10:13] == 'PHL':
+            is_phl = True
+        else:
+            is_phl = any('FILIPINO' in l or 'PHL' in l for l in lines)
+
+        if is_phl and len(mrz_lines) >= 1:
+            line1 = mrz_lines[0]
+            if line1.startswith('P<PL'):
+                mrz_lines[0] = 'P<PHL' + line1[4:]
+            elif line1.startswith('P<PH') and not line1.startswith('P<PHL'):
+                mrz_lines[0] = 'P<PHL' + line1[4:]
+            elif line1.startswith('P<P') and not line1.startswith('P<PH') and not line1.startswith('P<PL'):
+                mrz_lines[0] = 'P<PHL' + line1[3:]
+
         extracted_data = {
             'raw_text': lines,
             'mrz': mrz_lines,
@@ -76,31 +118,108 @@ class OCREngine:
         }
 
         if mrz_lines:
-            cleaned_mrz_lines = [self._clean_mrz_line(line) for line in mrz_lines]
+            target_len = 44
+            if len(mrz_lines) == 3:
+                target_len = 30
+            elif len(mrz_lines) == 2:
+                max_len = max(len(l) for l in mrz_lines)
+                if max_len <= 36:
+                    target_len = 36
+                else:
+                    target_len = 44
+
+            cleaned_mrz_lines = [self._clean_mrz_line(line, target_len) for line in mrz_lines]
             mrz_text = "\n".join(cleaned_mrz_lines)
 
             # Try parsing with different checkers
             for checker_class in [TD3CodeChecker, TD2CodeChecker, TD1CodeChecker]:
                 try:
                     checker = checker_class(mrz_text)
-                    if checker:
-                        fields = checker.fields()
-                        extracted_data['parsed_mrz'] = self._format_checker_fields(fields)
-                        break
+                    fields = checker.fields()
+                    extracted_data['parsed_mrz'] = self._format_checker_fields(fields, lines_with_spaces)
+                    if extracted_data['parsed_mrz']:
+                        surname = extracted_data['parsed_mrz'].get('surname', '')
+                        given_names = extracted_data['parsed_mrz'].get('given_names', '')
+                        place_of_birth = self._extract_place_of_birth(lines_with_spaces, surname=surname, given_names=given_names)
+                        extracted_data['parsed_mrz']['place_of_birth'] = place_of_birth
+                    break
                 except:
                     continue
 
         return extracted_data
 
-    def _clean_mrz_line(self, line):
+    def _extract_place_of_birth(self, raw_text_lines, surname="", given_names=""):
+        # Normalize lines
+        lines = [l.strip().upper() for l in raw_text_lines if l.strip()]
+        
+        # 1. Try to find by label first
+        for idx, line in enumerate(lines):
+            line_no_spaces = line.replace(' ', '')
+            if 'PLACEOFBIRTH' in line_no_spaces or 'PLACE OF BIRTH' in line or 'LUGARNGKAPANGANAKAN' in line_no_spaces:
+                # Look at the next few lines (up to 2) to find a valid place of birth
+                for offset in [1, 2]:
+                    if idx + offset < len(lines):
+                        candidate = lines[idx + offset]
+                        candidate_no_spaces = candidate.replace(' ', '')
+                        # Skip if it is noise or standard labels
+                        if candidate_no_spaces in ['M', 'F', 'MALE', 'FEMALE', 'PLACEOFBIRTH', 'GRC', 'PHL']:
+                            continue
+                        if any(char.isdigit() for char in candidate):
+                            continue
+                        return candidate
+                        
+        # 2. Fall back to nationality-relative search
+        nat_index = -1
+        for idx, line in enumerate(lines):
+            if any(term in line.replace(' ', '') for term in ['FILIPINO', 'HELLENIC', 'EAAHNIKH', 'NATIONALITY', 'LUGARNGKAPANGANAKAN', 'PLACEOFBIRTH']):
+                nat_index = idx
+                break
+                
+        if nat_index != -1:
+            # Prepare names to skip
+            names_to_skip = set()
+            for name in [surname, given_names]:
+                if name:
+                    # add parts of name
+                    for part in name.upper().split():
+                        names_to_skip.add(part.replace(' ', ''))
+                        
+            for i in range(nat_index + 1, len(lines)):
+                line = lines[i]
+                line_no_spaces = line.replace(' ', '')
+                # Skip if it matches sex
+                if line_no_spaces in ['M', 'F', 'MALE', 'FEMALE']:
+                    continue
+                # Skip if it matches name parts
+                if any(part in line_no_spaces or line_no_spaces in part for part in names_to_skip):
+                    continue
+                # Skip if it is a date
+                has_month = any(m in line_no_spaces for m in ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'])
+                has_digits = any(c.isdigit() for c in line_no_spaces)
+                if has_month and has_digits:
+                    continue
+                # Skip small codes
+                if len(line_no_spaces) <= 3 and any(c.isdigit() for c in line_no_spaces):
+                    continue
+                # Skip standard passport identifiers
+                if line_no_spaces.startswith('P<') or any(line_no_spaces.startswith(p) for p in ['P4', 'P6', 'P1', 'P8', 'P9']):
+                    continue
+                # Skip common labels
+                if 'PLACEOFBIRTH' in line_no_spaces or 'PLACEOF' in line_no_spaces or 'BIRTH' in line_no_spaces:
+                    continue
+                return line
+        return ""
+
+    def _clean_mrz_line(self, line, target_len):
         """Applies fuzzy logic to correct common OCR errors in MRZ lines."""
         # Keep only alphanumeric and '<'
         cleaned = ''.join(c for c in line if c.isalnum() or c == '<')
         
-        # If the line ends with a lot of noise, truncate to valid MRZ lengths
-        if len(cleaned) > 44: cleaned = cleaned[:44]
-        elif 36 < len(cleaned) < 44: cleaned = cleaned[:36]
-        elif 30 < len(cleaned) < 36: cleaned = cleaned[:30]
+        # Adjust length to target_len (pad with '<' if too short, truncate if too long)
+        if len(cleaned) > target_len:
+            cleaned = cleaned[:target_len]
+        elif len(cleaned) < target_len:
+            cleaned = cleaned + '<' * (target_len - len(cleaned))
 
         # Fuzzy corrections for common substitutions in numeric areas
         # This is a general sweep - professional MRZ checkers do this per-field
@@ -122,15 +241,69 @@ class OCREngine:
 
         return cleaned
 
-    def _format_checker_fields(self, fields):
+    def _clean_name_digits(self, name_str):
+        if not name_str:
+            return ""
+        mapping = {
+            '0': 'O',
+            '1': 'I',
+            '2': 'Z',
+            '8': 'B',
+            '5': 'S'
+        }
+        return "".join(mapping.get(c, c) for c in name_str.upper())
+
+    def _correct_name(self, name_str, raw_lines):
+        if not name_str:
+            return ""
+            
+        name_str = self._clean_name_digits(name_str)
+        
+        clean_mrz = name_str.replace('<', '').replace(' ', '')
+        if len(clean_mrz) >= 3:
+            for line in raw_lines:
+                line_clean = ''.join(c for c in line.upper() if c.isalnum())
+                line_clean = self._clean_name_digits(line_clean)
+                line_clean = ''.join(c for c in line_clean if c.isalpha())
+                
+                if len(line_clean) > len(clean_mrz) and len(line_clean) <= len(clean_mrz) + 4:
+                    it = iter(line_clean)
+                    if all(char in it for char in clean_mrz):
+                        return line_clean
+                        
+        return name_str
+
+    def _format_checker_fields(self, fields, raw_lines):
+        from utils import parse_date
+        
+        nat = getattr(fields, 'nationality', '')
+        if not nat:
+            nat = getattr(fields, 'country', '')
+            
+        # Normalize nationality if it has common OCR errors
+        if nat in ['PLV', 'PLB', 'PH1', 'P1HL']:
+            nat = 'PHL'
+            
+        dob = getattr(fields, 'birth_date', '')
+        dob_iso = parse_date(dob) if dob else ''
+        
+        exp = getattr(fields, 'expiry_date', '')
+        exp_iso = parse_date(exp) if exp else ''
+        
+        surname = getattr(fields, 'surname', '')
+        given_names = getattr(fields, 'name', '')
+        
+        surname = self._correct_name(surname, raw_lines)
+        given_names = self._correct_name(given_names, raw_lines)
+        
         return {
-            'surname': getattr(fields, 'surname', ''),
-            'given_names': getattr(fields, 'name', ''),
-            'nationality': getattr(fields, 'country', ''),
+            'surname': surname,
+            'given_names': given_names,
+            'nationality': nat,
             'passport_number': getattr(fields, 'document_number', ''),
             'sex': getattr(fields, 'sex', ''),
-            'date_of_birth': getattr(fields, 'birth_date', ''),
-            'passport_expiry': getattr(fields, 'expiry_date', ''),
+            'date_of_birth': dob_iso,
+            'passport_expiry': exp_iso,
             'issuer': getattr(fields, 'issuer', '')
         }
 
