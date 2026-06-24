@@ -184,7 +184,14 @@ class CrewListApp:
             self.cm.add_crew_member(data)
             print(f"Added {data['surname']} to database.")
 
-        input("\nAll files processed. Press Enter...")
+            # Ask to continue or exit
+            if filename != files[-1]:
+                cont = input("\nProcess next scan? (Y/n): ").lower()
+                if cont == 'n':
+                    print("Processing stopped.")
+                    break
+
+        input("\nProcessing finished. Press Enter to return to menu...")
 
     def _verify(self, label, value):
         val = input(f"{label} [{value}]: ")
@@ -300,6 +307,10 @@ class CrewListApp:
         input("Press Enter...")
 
 if __name__ == '__main__':
-    # check_dependencies() is already called above
-    app = CrewListApp()
-    app.main_menu()
+    try:
+        # check_dependencies() is already called above
+        app = CrewListApp()
+        app.main_menu()
+    except KeyboardInterrupt:
+        print("\n\nOperation cancelled by user. Exiting gracefully...")
+        sys.exit(0)
