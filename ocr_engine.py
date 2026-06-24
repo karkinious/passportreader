@@ -55,8 +55,22 @@ class OCREngine:
     def _parse_ocr_results(self, results):
         """Extracts MRZ lines and other potential data from PaddleOCR results."""
         # result format: [ [[box], (text, confidence)], ... ]
-        lines = [line[1][0].replace(' ', '') for line in results]
-        confidences = [line[1][1] for line in results]
+        lines = []
+        confidences = []
+
+        for item in results:
+            try:
+                # Basic check for expected format [[box], (text, confidence)]
+                if isinstance(item, (list, tuple)) and len(item) >= 2:
+                    text_info = item[1]
+                    if isinstance(text_info, (list, tuple)) and len(text_info) >= 2:
+                        text = text_info[0]
+                        conf = text_info[1]
+                        if isinstance(text, str):
+                            lines.append(text.replace(' ', ''))
+                            confidences.append(float(conf) if conf is not None else 0.0)
+            except (IndexError, TypeError, ValueError):
+                continue
 
         mrz_lines = []
         mrz_confidences = []
