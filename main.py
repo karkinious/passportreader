@@ -144,43 +144,8 @@ class CrewListApp:
 
         for filename in files:
             file_path = os.path.join(folder, filename)
-            print(f"\nProcessing {filename}...")
+            data = self._ocr_file_flow(file_path)
 
-            # Open file for user to see
-            open_file(file_path)
-
-            result = self.ocr.process_file(file_path)
-            parsed = result['parsed_mrz'] if result else None
-            conf = result['mrz_confidence'] if result else 0
-
-            print(f"OCR Confidence: {conf:.2f}")
-
-            # Form data
-            match = re.match(r'^(\d+)', filename)
-            if match:
-                crew_num = match.group(1)
-            else:
-                crew_num = self.cm.get_next_crew_number()
-
-            pob_default = parsed.get('place_of_birth', '') if parsed else ''
-
-            data = {
-                'crew_number': input(f"Crew Number [{crew_num}]: ") or crew_num,
-                'surname': self._verify("Surname", parsed.get('surname', '') if parsed else ''),
-                'given_names': self._verify("Given Names", parsed.get('given_names', '') if parsed else ''),
-                'rank': input("Rank: "),
-                'sex': self._get_sex_input(parsed.get('sex', '') if parsed else ''),
-                'nationality': self._get_nat_input(parsed.get('nationality', '') if parsed else ''),
-                'date_of_birth': self._get_date_input("Date of Birth", parsed.get('date_of_birth', '') if parsed else ''),
-                'place_of_birth': input(f"Place of Birth [{pob_default}]: ") or pob_default,
-                'passport_number': self._verify("Passport No", parsed.get('passport_number', '') if parsed else ''),
-                'passport_expiry': self._get_date_input("Passport Expiry", parsed.get('passport_expiry', '') if parsed else ''),
-                'seamans_book_number': input("Seaman's Book No: "),
-                'seamans_book_expiry': self._get_date_input("Seaman's Book Expiry"),
-                'joining_date': self._get_date_input("Sign-on Date"),
-                'joining_place': input("Sign-on Port: "),
-                'ocr_confidence': str(conf)
-            }
             self.cm.add_crew_member(data)
             print(f"Added {data['surname']} to database.")
 
@@ -197,8 +162,43 @@ class CrewListApp:
         val = input(f"{label} [{value}]: ")
         return val if val else value
 
-    def add_manual_crew(self):
-        crew_num = self.cm.get_next_crew_number()
+    def _ocr_file_flow(self, file_path):
+        filename = os.path.basename(file_path)
+        print(f"\nProcessing {filename}...")
+        open_file(file_path)
+
+        result = self.ocr.process_file(file_path)
+        parsed = result['parsed_mrz'] if result else None
+        conf = result['mrz_confidence'] if result else 0
+        print(f"OCR Confidence: {conf:.2f}")
+
+        match = re.match(r'^(\d+)', filename)
+        crew_num = match.group(1) if match else self.cm.get_next_crew_number()
+        pob_default = parsed.get('place_of_birth', '') if parsed else ''
+
+        data = {
+            'crew_number': input(f"Crew Number [{crew_num}]: ") or crew_num,
+            'surname': self._verify("Surname", parsed.get('surname', '') if parsed else ''),
+            'given_names': self._verify("Given Names", parsed.get('given_names', '') if parsed else ''),
+            'rank': input("Rank: "),
+            'sex': self._get_sex_input(parsed.get('sex', '') if parsed else ''),
+            'nationality': self._get_nat_input(parsed.get('nationality', '') if parsed else ''),
+            'date_of_birth': self._get_date_input("Date of Birth", parsed.get('date_of_birth', '') if parsed else ''),
+            'place_of_birth': input(f"Place of Birth [{pob_default}]: ") or pob_default,
+            'passport_number': self._verify("Passport No", parsed.get('passport_number', '') if parsed else ''),
+            'passport_expiry': self._get_date_input("Passport Expiry", parsed.get('passport_expiry', '') if parsed else ''),
+            'seamans_book_number': input("Seaman's Book No: "),
+            'seamans_book_expiry': self._get_date_input("Seaman's Book Expiry"),
+            'joining_date': self._get_date_input("Sign-on Date"),
+            'joining_place': input("Sign-on Port: "),
+            'ocr_confidence': str(conf)
+        }
+        return data
+
+    def _manual_entry_flow(self, crew_num=None):
+        if crew_num is None:
+            crew_num = self.cm.get_next_crew_number()
+
         data = {
             'crew_number': input(f"Crew Number [{crew_num}]: ") or crew_num,
             'surname': input("Surname: "),
@@ -216,8 +216,75 @@ class CrewListApp:
             'joining_place': input("Sign-on Port: "),
             'ocr_confidence': "Manual"
         }
-        self.cm.add_crew_member(data)
-        input("\nAdded. Press Enter...")
+        return data
+
+    def _pick_file(self, folder='passports'):
+        if not os.path.isdir(folder):
+            print(f"Directory {folder} not found.")
+            return None
+
+        files = sorted([f for f in os.listdir(folder) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.pdf'))])
+        if not files:
+            print("No supported files found.")
+            return None
+
+        print("\nAvailable files:")
+        for i, f in enumerate(files):
+            print(f"{i+1}. {f}")
+
+        while True:
+            choice = input("\nSelect file number (or 'b' to go back): ")
+            if choice.lower() == 'b': return None
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < len(files):
+                    return os.path.join(folder, files[idx])
+            except ValueError:
+                pass
+            print("Invalid choice.")
+
+    def add_manual_crew(self):
+        while True:
+            print("\n--- Add Crew Member ---")
+            print("1. Insert (Shift next members down)")
+            print("2. Replace (Overwrite existing member)")
+            print("b. Back")
+
+            mode_choice = input("Select mode: ").lower()
+            if mode_choice == 'b': break
+            if mode_choice not in ['1', '2']: continue
+
+            print("\n1. From Scan (OCR)")
+            print("2. Manual Entry")
+            type_choice = input("Select type: ")
+
+            data = None
+            if type_choice == '1':
+                file_path = self._pick_file()
+                if file_path:
+                    data = self._ocr_file_flow(file_path)
+            elif type_choice == '2':
+                data = self._manual_entry_flow()
+
+            if data:
+                if mode_choice == '1':
+                    # Insert mode uses the existing add_crew_member shifting logic
+                    self.cm.add_crew_member(data)
+                    print(f"Member {data['crew_number']} inserted.")
+                else:
+                    # Replace mode
+                    num = int(data['crew_number'])
+                    existing = self.cm.get_member_by_number(num)
+                    if existing:
+                        self.cm.update_crew_member(existing['id'], data)
+                        print(f"Member {num} replaced.")
+                    else:
+                        # If doesn't exist, just add it
+                        self.cm.add_crew_member(data)
+                        print(f"Member {num} added (did not exist).")
+
+                input("Press Enter...")
+                break
 
     def manage_crew(self):
         message = ""
