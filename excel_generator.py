@@ -44,17 +44,22 @@ class ExcelGenerator:
         sheet.cell(row=6, column=1).value = f"4. Nationality of ship: {voyage_info.get('nationality_of_ship', '')}"
         sheet.cell(row=6, column=5).value = f"5. Last Port of Call: {voyage_info.get('last_port_of_call', '')}"
 
-        # Crew Members (Start from Row 10 based on inspection)
-        start_row = 10
+        # Crew Members (Start from Row 9 based on user request)
+        start_row = 9
         for i, m in enumerate(crew_list):
             row = start_row + i
 
             # Unmerge cells for birth and joining if they are merged in the template
-            # Ensuring H(8), J(10), K(11), L(12) are free to write
+            # For Birth Date, we want H-I (8-9) merged.
+            # First, clear any existing merges for columns we will touch
             self._safe_unmerge(sheet, row, 8, row, 8)
+            self._safe_unmerge(sheet, row, 9, row, 9)
             self._safe_unmerge(sheet, row, 10, row, 10)
             self._safe_unmerge(sheet, row, 11, row, 11)
             self._safe_unmerge(sheet, row, 12, row, 12)
+
+            # Merge H and I for Date of Birth
+            sheet.merge_cells(start_row=row, start_column=8, end_row=row, end_column=9)
 
             sheet.cell(row=row, column=1).value = m.get('crew_number')
             sheet.cell(row=row, column=2).value = m.get('surname')
@@ -62,7 +67,11 @@ class ExcelGenerator:
             sheet.cell(row=row, column=4).value = m.get('rank')
             sheet.cell(row=row, column=5).value = m.get('sex')
             sheet.cell(row=row, column=6).value = m.get('nationality')
+
+            # Value for merged H-I
             sheet.cell(row=row, column=8).value = utils.format_date_display(m.get('date_of_birth'))
+            sheet.cell(row=row, column=8).alignment = Alignment(horizontal='center')
+
             sheet.cell(row=row, column=10).value = m.get('place_of_birth')
             sheet.cell(row=row, column=11).value = utils.format_date_display(m.get('joining_date'))
             sheet.cell(row=row, column=12).value = m.get('joining_place')
