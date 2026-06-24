@@ -85,11 +85,12 @@ class ExcelGenerator:
     def _safe_unmerge(self, sheet, r1, c1, r2, c2):
         """Unmerges a range if it is part of merged cells."""
         # Check if the cell is part of any merged range
+        # We need to unmerge the exact range that exists in merged_cells.ranges
         target_cell = sheet.cell(row=r1, column=c1).coordinate
         for merged_range in list(sheet.merged_cells.ranges):
             if target_cell in merged_range:
-                sheet.unmerge_cells(start_row=r1, start_column=c1, end_row=r2, end_column=c2)
-                break
+                sheet.unmerge_cells(str(merged_range))
+                # Note: unmerging might affect other cells, but we only care about freeing our target
 
 if __name__ == '__main__':
     print("Excel Generator ready.")
