@@ -213,6 +213,7 @@ class CrewListApp:
         input("\nAdded. Press Enter...")
 
     def manage_crew(self):
+        message = ""
         while True:
             clear_screen()
             crew = self.cm.get_all_crew()
@@ -222,27 +223,46 @@ class CrewListApp:
                 name = f"{m['surname']}, {m['given_names']}"[:24]
                 print(f"{m['crew_number']:<4} {name:<25} {m['rank']:<15} {m['passport_number']:<15}")
 
+            if message:
+                print(f"\n>>> {message}")
+                message = ""
+
             print("\nOptions: (e) Edit [No.], (r) Remove [No.], (b) Back")
             choice = input("Select: ").lower()
             if choice == 'b': break
 
             try:
                 parts = choice.split()
+                if len(parts) < 2:
+                    continue
+
                 cmd = parts[0]
-                num = int(parts[1])
+                try:
+                    num = int(parts[1])
+                except ValueError:
+                    message = f"Invalid number: {parts[1]}"
+                    continue
+
                 member = next((m for m in crew if m['crew_number'] == num), None)
 
                 if not member:
-                    print("Member not found.")
-                    input()
+                    message = f"Member with number {num} not found."
                     continue
 
                 if cmd == 'e':
                     self.edit_member(member)
+                    message = f"Member {num} updated successfully."
                 elif cmd == 'r':
-                    self.cm.remove_crew_member(member['id'])
-            except:
-                continue
+                    confirm = input(f"Are you sure you want to remove member {num}? (y/N): ").lower()
+                    if confirm == 'y':
+                        self.cm.remove_crew_member(member['id'])
+                        message = f"Member {num} removed successfully."
+                    else:
+                        message = "Removal cancelled."
+                else:
+                    message = f"Unknown command: {cmd}"
+            except Exception as e:
+                message = f"An error occurred: {str(e)}"
 
     def edit_member(self, m):
         print(f"\nEditing {m['surname']}")
