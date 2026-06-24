@@ -54,8 +54,10 @@ class ExcelGenerator:
             sheet.cell(row=row, column=4).value = m.get('rank')
             sheet.cell(row=row, column=5).value = m.get('sex')
             sheet.cell(row=row, column=6).value = m.get('nationality')
-            sheet.cell(row=row, column=8).value = f"{utils.format_date_display(m.get('date_of_birth'))} {m.get('place_of_birth')}"
-            sheet.cell(row=row, column=11).value = f"{utils.format_date_display(m.get('joining_date'))} {m.get('joining_place')}"
+            sheet.cell(row=row, column=8).value = utils.format_date_display(m.get('date_of_birth'))
+            sheet.cell(row=row, column=9).value = m.get('place_of_birth')
+            sheet.cell(row=row, column=11).value = utils.format_date_display(m.get('joining_date'))
+            sheet.cell(row=row, column=12).value = m.get('joining_place')
 
             # Seaman's Book in col 13 (Nature and No.) and 14 (Expiry)
             sheet.cell(row=row, column=13).value = m.get('seamans_book_number')
