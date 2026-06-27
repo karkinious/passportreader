@@ -100,18 +100,16 @@ class CrewListApp:
             print("=== IMO Crew List Generator ===")
             print("1. Set/Edit Voyage Information")
             print("2. Process Passport Scans Folder")
-            print("3. Add Crew Member Manually")
-            print("4. View/Edit/Remove Crew Members")
-            print("5. Generate Excel Crew List")
+            print("3. View/Edit/Add Crew Members")
+            print("4. Generate Excel Crew List")
             print("0. Exit")
 
             choice = input("\nSelect an option: ")
 
             if choice == '1': self.edit_voyage_info()
             elif choice == '2': self.process_folder()
-            elif choice == '3': self.add_manual_crew()
-            elif choice == '4': self.manage_crew()
-            elif choice == '5': self.generate_excel()
+            elif choice == '3': self.manage_crew()
+            elif choice == '4': self.generate_excel()
             elif choice == '0': break
 
     def edit_voyage_info(self):
@@ -301,16 +299,23 @@ class CrewListApp:
                 print(f"\n>>> {message}")
                 message = ""
 
-            print("\nOptions: (e) Edit [No.], (r) Remove [No.], (b) Back")
+            print("\nOptions: (a) Add, (e) Edit [No.], (r) Remove [No.], (b) Back")
             choice = input("Select: ").lower()
             if choice == 'b': break
 
             try:
                 parts = choice.split()
-                if len(parts) < 2:
+                if not parts:
                     continue
 
                 cmd = parts[0]
+                if cmd == 'a':
+                    self.add_manual_crew()
+                    continue
+
+                if len(parts) < 2:
+                    continue
+
                 try:
                     num = int(parts[1])
                 except ValueError:
