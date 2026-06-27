@@ -84,6 +84,8 @@ class OCREngine:
         lines = [line.replace(' ', '') for line in lines_with_spaces]
         confidences = [item[1] for item in results]
 
+        middle_name = self._extract_middle_name(lines_with_spaces)
+
         mrz_lines = []
         mrz_confidences = []
 
@@ -136,7 +138,7 @@ class OCREngine:
                 try:
                     checker = checker_class(mrz_text)
                     fields = checker.fields()
-                    extracted_data['parsed_mrz'] = self._format_checker_fields(fields, lines_with_spaces)
+                    extracted_data['parsed_mrz'] = self._format_checker_fields(fields, lines_with_spaces, middle_name=middle_name)
                     if extracted_data['parsed_mrz']:
                         surname = extracted_data['parsed_mrz'].get('surname', '')
                         given_names = extracted_data['parsed_mrz'].get('given_names', '')
@@ -147,6 +149,43 @@ class OCREngine:
                     continue
 
         return extracted_data
+
+    def _extract_middle_name(self, raw_text_lines):
+        """Extracts middle name based on common labels."""
+        # 'APELYIDO' alone refers to Surname in PHL passports.
+        # We need the full 'PANGGITNANG APELYIDO' for middle name.
+        labels = ['MIDDLE NAME', 'PANGGITNANG APELYIDO', 'PANGGITNANG']
+        lines = [l.strip().upper() for l in raw_text_lines if l.strip()]
+
+        for idx, line in enumerate(lines):
+            line_no_spaces = line.replace(' ', '')
+            # Check if any label is in the line
+            matching_label = next((l for l in labels if l.replace(' ', '') in line_no_spaces), None)
+            if matching_label:
+                # 1. Try same line first (in case OCR merged label and value)
+                potential = line.replace(matching_label, '').replace('/', '').replace(':', '').strip()
+                if len(potential) >= 2 and not any(c.isdigit() for c in potential):
+                    if not any(l.replace(' ', '') in potential.replace(' ', '') for l in labels + ['PLACEOFBIRTH', 'BIRTH', 'SURNAME', 'GIVEN']):
+                        return potential
+
+                # 2. Try to find the value in the next few lines
+                for offset in [1, 2]:
+                    if idx + offset < len(lines):
+                        candidate = lines[idx + offset]
+                        candidate_no_spaces = candidate.replace(' ', '')
+
+                        # Skip if it is noise, standard labels, or too short
+                        if candidate_no_spaces in ['M', 'F', 'MALE', 'FEMALE', 'PHL'] or len(candidate_no_spaces) < 2:
+                            continue
+                        # Skip if it contains digits (likely a date or passport number)
+                        if any(char.isdigit() for char in candidate):
+                            continue
+                        # Skip if it's another label
+                        if any(label.replace(' ', '') in candidate_no_spaces for label in labels + ['PLACEOFBIRTH', 'BIRTH', 'SURNAME', 'GIVEN']):
+                            continue
+
+                        return candidate
+        return ""
 
     def _extract_place_of_birth(self, raw_text_lines, surname="", given_names=""):
         # Normalize lines
@@ -273,7 +312,7 @@ class OCREngine:
                         
         return name_str
 
-    def _format_checker_fields(self, fields, raw_lines):
+    def _format_checker_fields(self, fields, raw_lines, middle_name=""):
         from utils import parse_date
         
         nat = getattr(fields, 'nationality', '')
@@ -296,6 +335,19 @@ class OCREngine:
         surname = self._correct_name(surname, raw_lines)
         given_names = self._correct_name(given_names, raw_lines)
         
+        if middle_name:
+            # Append middle name to given names if not already present
+            middle_name_upper = middle_name.upper().strip()
+            given_names_upper = given_names.upper()
+
+            # Split given names and middle name to check for exact part match
+            given_parts = given_names_upper.split()
+            middle_parts = middle_name_upper.split()
+
+            # If any part of middle name is missing from given names, append the whole thing
+            if not all(part in given_parts for part in middle_parts):
+                given_names = f"{given_names} {middle_name_upper}".strip()
+
         return {
             'surname': surname,
             'given_names': given_names,
