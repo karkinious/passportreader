@@ -158,41 +158,58 @@ class OCREngine:
 
         # 'APELYIDO' alone refers to Surname in PHL passports.
         # We need the full 'PANGGITNANG APELYIDO' for middle name.
+        # Added variants and common OCR errors.
         labels = [
             r'MIDDLE\s*NAME',
+            r'MIDLE\s*NAME',
             r'PANGGITNANG\s*APELYIDO',
             r'PANGGITNANG',
+            r'PANG-GITNANG',
+            r'PANGITNANG',
             r'MOTHER\'S\s*MAIDEN\s*NAME',
+            r'MAIDEN\s*NAME',
             r'MOTHER'
         ]
+
+        # Exclusion labels to avoid capturing other field headers as names
+        exclusions = labels + [r'PLACE', r'BIRTH', r'SURNAME', r'GIVEN', r'NAME', r'APELYIDO', r'PANGALAN', r'SEX', r'NATIONALITY']
+
         lines = [l.strip().upper() for l in raw_text_lines if l.strip()]
 
         for idx, line in enumerate(lines):
             for label_pattern in labels:
                 match = re.search(label_pattern, line)
                 if match:
-                    # print(f"DEBUG: Found label match '{label_pattern}' in line '{line}'")
                     # 1. Try same line first
-                    # Remove the label and common separators
-                    potential = line[match.end():].strip()
+                    # Strip all known labels from the line to find the actual value
+                    remainder = line
+                    for lp in labels:
+                        remainder = re.sub(lp, '', remainder)
+
+                    potential = remainder.strip()
+                    # Clean up separators
                     potential = re.sub(r'^[/:.\-\s]+', '', potential)
+                    potential = re.sub(r'[/:.\-\s]+$', '', potential)
 
                     if len(potential) >= 2 and not any(c.isdigit() for c in potential):
                         # Ensure it's not just another label
-                        if not any(re.search(l, potential) for l in labels + [r'PLACE', r'BIRTH', r'SURNAME', r'GIVEN']):
+                        if not any(re.search(ex, potential) for ex in exclusions):
                             return potential
 
                     # 2. Try to find the value in the next few lines
-                    for offset in [1, 2]:
+                    for offset in [1, 2, 3]:
                         if idx + offset < len(lines):
                             candidate = lines[idx + offset]
                             candidate_no_spaces = candidate.replace(' ', '')
 
-                            if candidate_no_spaces in ['M', 'F', 'MALE', 'FEMALE', 'PHL'] or len(candidate_no_spaces) < 2:
+                            # Skip common noise, single chars, and other field labels
+                            if candidate_no_spaces in ['M', 'F', 'MALE', 'FEMALE', 'PHL', 'SEX'] or len(candidate_no_spaces) < 2:
                                 continue
                             if any(char.isdigit() for char in candidate):
                                 continue
-                            if any(re.search(l, candidate) for l in labels + [r'PLACE', r'BIRTH', r'SURNAME', r'GIVEN']):
+                            if not any(char.isalpha() for char in candidate):
+                                continue
+                            if any(re.search(ex, candidate) for ex in exclusions):
                                 continue
 
                             return candidate
