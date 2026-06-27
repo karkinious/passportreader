@@ -153,40 +153,49 @@ class OCREngine:
         return extracted_data
 
     def _extract_middle_name(self, raw_text_lines):
-        """Extracts middle name based on common labels."""
+        """Extracts middle name based on common labels using fuzzy matching."""
+        import re
+
         # 'APELYIDO' alone refers to Surname in PHL passports.
         # We need the full 'PANGGITNANG APELYIDO' for middle name.
-        labels = ['MIDDLE NAME', 'PANGGITNANG APELYIDO', 'PANGGITNANG']
+        labels = [
+            r'MIDDLE\s*NAME',
+            r'PANGGITNANG\s*APELYIDO',
+            r'PANGGITNANG',
+            r'MOTHER\'S\s*MAIDEN\s*NAME',
+            r'MOTHER'
+        ]
         lines = [l.strip().upper() for l in raw_text_lines if l.strip()]
 
         for idx, line in enumerate(lines):
-            line_no_spaces = line.replace(' ', '')
-            # Check if any label is in the line
-            matching_label = next((l for l in labels if l.replace(' ', '') in line_no_spaces), None)
-            if matching_label:
-                # 1. Try same line first (in case OCR merged label and value)
-                potential = line.replace(matching_label, '').replace('/', '').replace(':', '').strip()
-                if len(potential) >= 2 and not any(c.isdigit() for c in potential):
-                    if not any(l.replace(' ', '') in potential.replace(' ', '') for l in labels + ['PLACEOFBIRTH', 'BIRTH', 'SURNAME', 'GIVEN']):
-                        return potential
+            for label_pattern in labels:
+                match = re.search(label_pattern, line)
+                if match:
+                    # print(f"DEBUG: Found label match '{label_pattern}' in line '{line}'")
+                    # 1. Try same line first
+                    # Remove the label and common separators
+                    potential = line[match.end():].strip()
+                    potential = re.sub(r'^[/:.\-\s]+', '', potential)
 
-                # 2. Try to find the value in the next few lines
-                for offset in [1, 2]:
-                    if idx + offset < len(lines):
-                        candidate = lines[idx + offset]
-                        candidate_no_spaces = candidate.replace(' ', '')
+                    if len(potential) >= 2 and not any(c.isdigit() for c in potential):
+                        # Ensure it's not just another label
+                        if not any(re.search(l, potential) for l in labels + [r'PLACE', r'BIRTH', r'SURNAME', r'GIVEN']):
+                            return potential
 
-                        # Skip if it is noise, standard labels, or too short
-                        if candidate_no_spaces in ['M', 'F', 'MALE', 'FEMALE', 'PHL'] or len(candidate_no_spaces) < 2:
-                            continue
-                        # Skip if it contains digits (likely a date or passport number)
-                        if any(char.isdigit() for char in candidate):
-                            continue
-                        # Skip if it's another label
-                        if any(label.replace(' ', '') in candidate_no_spaces for label in labels + ['PLACEOFBIRTH', 'BIRTH', 'SURNAME', 'GIVEN']):
-                            continue
+                    # 2. Try to find the value in the next few lines
+                    for offset in [1, 2]:
+                        if idx + offset < len(lines):
+                            candidate = lines[idx + offset]
+                            candidate_no_spaces = candidate.replace(' ', '')
 
-                        return candidate
+                            if candidate_no_spaces in ['M', 'F', 'MALE', 'FEMALE', 'PHL'] or len(candidate_no_spaces) < 2:
+                                continue
+                            if any(char.isdigit() for char in candidate):
+                                continue
+                            if any(re.search(l, candidate) for l in labels + [r'PLACE', r'BIRTH', r'SURNAME', r'GIVEN']):
+                                continue
+
+                            return candidate
         return ""
 
     def _extract_place_of_birth(self, raw_text_lines, surname="", given_names=""):
