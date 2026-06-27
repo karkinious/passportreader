@@ -170,19 +170,29 @@ class CrewListApp:
         conf = result['mrz_confidence'] if result else 0
         print(f"OCR Confidence: {conf:.2f}")
 
-        # Check if middle name was extracted separately
-        middle_name = result.get('middle_name', '')
-        if middle_name:
-            print(f"Extracted Middle Name: {middle_name}")
-
         match = re.match(r'^(\d+)', filename)
         crew_num = match.group(1) if match else self.cm.get_next_crew_number()
         pob_default = parsed.get('place_of_birth', '') if parsed else ''
 
+        surname = self._verify("Surname", parsed.get('surname', '') if parsed else '')
+        given_names_raw = parsed.get('given_names', '') if parsed else ''
+        middle_name_raw = parsed.get('middle_name', '') if parsed else ''
+
+        # Verify both given and middle name
+        given_names = self._verify("Given Names", given_names_raw)
+        middle_name = self._verify("Middle Name", middle_name_raw)
+
+        # Concatenate them for storage - the database expect them in one column for the IMO list
+        full_given_names = given_names
+        if middle_name:
+            # Avoid duplication if user enters middle name in both
+            if middle_name.upper() not in given_names.upper():
+                full_given_names = f"{given_names} {middle_name}".strip()
+
         data = {
             'crew_number': input(f"Crew Number [{crew_num}]: ") or crew_num,
-            'surname': self._verify("Surname", parsed.get('surname', '') if parsed else ''),
-            'given_names': self._verify("Given Names", parsed.get('given_names', '') if parsed else ''),
+            'surname': surname,
+            'given_names': full_given_names,
             'rank': input("Rank: "),
             'sex': self._get_sex_input(parsed.get('sex', '') if parsed else ''),
             'nationality': self._get_nat_input(parsed.get('nationality', '') if parsed else ''),
@@ -202,10 +212,19 @@ class CrewListApp:
         if crew_num is None:
             crew_num = self.cm.get_next_crew_number()
 
+        surname = input("Surname: ")
+        given_names = input("Given Names: ")
+        middle_name = input("Middle Name: ")
+
+        full_given_names = given_names
+        if middle_name:
+            if middle_name.upper() not in given_names.upper():
+                full_given_names = f"{given_names} {middle_name}".strip()
+
         data = {
             'crew_number': input(f"Crew Number [{crew_num}]: ") or crew_num,
-            'surname': input("Surname: "),
-            'given_names': input("Given Names: "),
+            'surname': surname,
+            'given_names': full_given_names,
             'rank': input("Rank: "),
             'sex': self._get_sex_input(),
             'nationality': self._get_nat_input(),
@@ -351,10 +370,13 @@ class CrewListApp:
 
     def edit_member(self, m):
         print(f"\nEditing {m['surname']}")
+        surname = input(f"Surname [{m['surname']}]: ") or m['surname']
+        given_names = input(f"Given Names [{m['given_names']}]: ") or m['given_names']
+
         data = {
             'crew_number': input(f"Crew Number [{m['crew_number']}]: ") or m['crew_number'],
-            'surname': input(f"Surname [{m['surname']}]: ") or m['surname'],
-            'given_names': input(f"Given Names [{m['given_names']}]: ") or m['given_names'],
+            'surname': surname,
+            'given_names': given_names,
             'rank': input(f"Rank [{m['rank']}]: ") or m['rank'],
             'sex': self._get_sex_input(m['sex']),
             'nationality': self._get_nat_input(m['nationality']),
