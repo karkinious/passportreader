@@ -1,5 +1,6 @@
 import os
 import fitz  # PyMuPDF
+import re
 from paddleocr import PaddleOCR
 from mrz.checker.td3 import TD3CodeChecker
 from mrz.checker.td2 import TD2CodeChecker
@@ -154,7 +155,6 @@ class OCREngine:
 
     def _extract_middle_name(self, raw_text_lines):
         """Extracts middle name based on common labels using fuzzy matching."""
-        import re
 
         # 'APELYIDO' alone refers to Surname in PHL passports.
         # We need the full 'PANGGITNANG APELYIDO' for middle name.
