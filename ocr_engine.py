@@ -346,22 +346,10 @@ class OCREngine:
         surname = self._correct_name(surname, raw_lines)
         given_names = self._correct_name(given_names, raw_lines)
         
-        if middle_name:
-            # Append middle name to given names if not already present
-            middle_name_upper = middle_name.upper().strip()
-            given_names_upper = given_names.upper()
-
-            # Split given names and middle name to check for exact part match
-            given_parts = given_names_upper.split()
-            middle_parts = middle_name_upper.split()
-
-            # If any part of middle name is missing from given names, append the whole thing
-            if not all(part in given_parts for part in middle_parts):
-                given_names = f"{given_names} {middle_name_upper}".strip()
-
         return {
             'surname': surname,
             'given_names': given_names,
+            'middle_name': middle_name.upper().strip() if middle_name else "",
             'nationality': nat,
             'passport_number': getattr(fields, 'document_number', ''),
             'sex': getattr(fields, 'sex', ''),
