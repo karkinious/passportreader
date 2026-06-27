@@ -109,7 +109,9 @@ class CrewManager:
             if row:
                 num = row[0]
                 cursor.execute('DELETE FROM crew_members WHERE id = ?', (member_id,))
-                cursor.execute('UPDATE crew_members SET crew_number = crew_number - 1 WHERE crew_number > ?', (num,))
+                # Shift back using temporary negative numbers to avoid UNIQUE constraint violations
+                cursor.execute('UPDATE crew_members SET crew_number = -crew_number WHERE crew_number > ?', (num,))
+                cursor.execute('UPDATE crew_members SET crew_number = (-crew_number) - 1 WHERE crew_number < 0')
 
             conn.commit()
         except Exception as e:

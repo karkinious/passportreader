@@ -114,6 +114,8 @@ class OCREngine:
 
         extracted_data = {
             'raw_text': lines,
+            'raw_text_lines': lines_with_spaces,
+            'middle_name': middle_name,
             'mrz': mrz_lines,
             'mrz_confidence': sum(mrz_confidences)/len(mrz_confidences) if mrz_confidences else 0,
             'parsed_mrz': None

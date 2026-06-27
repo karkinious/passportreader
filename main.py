@@ -170,6 +170,11 @@ class CrewListApp:
         conf = result['mrz_confidence'] if result else 0
         print(f"OCR Confidence: {conf:.2f}")
 
+        # Check if middle name was extracted separately
+        middle_name = result.get('middle_name', '')
+        if middle_name:
+            print(f"Extracted Middle Name: {middle_name}")
+
         match = re.match(r'^(\d+)', filename)
         crew_num = match.group(1) if match else self.cm.get_next_crew_number()
         pob_default = parsed.get('place_of_birth', '') if parsed else ''
@@ -241,9 +246,10 @@ class CrewListApp:
                 pass
             print("Invalid choice.")
 
-    def add_manual_crew(self):
+    def add_manual_crew(self, suppress_header=False):
         while True:
-            print("\n--- Add Crew Member ---")
+            if not suppress_header:
+                print("\n--- Add Crew Member ---")
             print("1. Insert (Shift next members down)")
             print("2. Replace (Overwrite existing member)")
             print("b. Back")
@@ -310,7 +316,7 @@ class CrewListApp:
 
                 cmd = parts[0]
                 if cmd == 'a':
-                    self.add_manual_crew()
+                    self.add_manual_crew(suppress_header=True)
                     continue
 
                 if len(parts) < 2:
