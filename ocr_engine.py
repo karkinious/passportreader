@@ -153,8 +153,12 @@ class OCREngine:
 
         return extracted_data
 
-    def _extract_middle_name(self, raw_text_lines):
+    def _extract_middle_name(self, raw_text_lines, debug=True):
         """Extracts middle name based on common labels using fuzzy matching."""
+        if debug:
+            print("\n--- DEBUG: OCR Raw Lines ---")
+            for i, l in enumerate(raw_text_lines):
+                print(f"  [{i}] {l}")
 
         # 'APELYIDO' alone refers to Surname in PHL passports.
         # We need the full 'PANGGITNANG APELYIDO' for middle name.
@@ -191,10 +195,14 @@ class OCREngine:
                     potential = re.sub(r'^[/:.\-\s]+', '', potential)
                     potential = re.sub(r'[/:.\-\s]+$', '', potential)
 
-                    if len(potential) >= 2 and not any(c.isdigit() for c in potential):
-                        # Ensure it's not just another label
-                        if not any(re.search(ex, potential) for ex in exclusions):
-                            return potential
+                    if len(potential) >= 2:
+                        # Clean digits (e.g., '0' to 'O')
+                        potential_cleaned = self._clean_name_digits(potential)
+                        if not any(c.isdigit() for c in potential_cleaned):
+                            # Ensure it's not just another label
+                            if not any(re.search(ex, potential_cleaned) for ex in exclusions):
+                                if debug: print(f"  DEBUG: Found Middle Name (same line): '{potential_cleaned}'")
+                                return potential_cleaned
 
                     # 2. Try to find the value in the next few lines
                     for offset in [1, 2, 3]:
@@ -205,14 +213,19 @@ class OCREngine:
                             # Skip common noise, single chars, and other field labels
                             if candidate_no_spaces in ['M', 'F', 'MALE', 'FEMALE', 'PHL', 'SEX'] or len(candidate_no_spaces) < 2:
                                 continue
-                            if any(char.isdigit() for char in candidate):
-                                continue
-                            if not any(char.isalpha() for char in candidate):
-                                continue
-                            if any(re.search(ex, candidate) for ex in exclusions):
+
+                            # Clean digits and check if it's then alpha-only
+                            candidate_cleaned = self._clean_name_digits(candidate)
+                            if any(char.isdigit() for char in candidate_cleaned):
                                 continue
 
-                            return candidate
+                            if not any(char.isalpha() for char in candidate_cleaned):
+                                continue
+                            if any(re.search(ex, candidate_cleaned) for ex in exclusions):
+                                continue
+
+                            if debug: print(f"  DEBUG: Found Middle Name (offset {offset}): '{candidate_cleaned}'")
+                            return candidate_cleaned
         return ""
 
     def _extract_place_of_birth(self, raw_text_lines, surname="", given_names=""):
