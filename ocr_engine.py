@@ -113,6 +113,12 @@ class OCREngine:
             elif line1.startswith('P<P') and not line1.startswith('P<PH') and not line1.startswith('P<PL'):
                 mrz_lines[0] = 'P<PHL' + line1[3:]
 
+        # Fallback for PHL passports if label search failed
+        if is_phl and not middle_name:
+            # We already have surname and given_names if we can parse MRZ,
+            # but we might need them early here.
+            middle_name = self._extract_middle_name_positional(lines_with_spaces)
+
         extracted_data = {
             'raw_text': lines,
             'raw_text_lines': lines_with_spaces,
@@ -152,6 +158,45 @@ class OCREngine:
                     continue
 
         return extracted_data
+
+    def _extract_middle_name_positional(self, raw_text_lines, debug=True):
+        """
+        Fallback for PHL passports where the label might be missed or mangled.
+        Looks for the line immediately following Surname and Given Names.
+        """
+        lines = [l.strip().upper() for l in raw_text_lines if l.strip()]
+
+        # In PHL passports, the layout is usually:
+        # [Index N] Surname
+        # [Index N+1] Given Names
+        # [Index N+2] Middle Name
+
+        # We look for a pattern where two consecutive lines are likely Surname and Given Names
+        for i in range(len(lines) - 2):
+            line1 = lines[i]
+            line2 = lines[i+1]
+            line3 = lines[i+2]
+
+            # Simple heuristic: Surname and Given Names are usually single or multi-word alpha strings
+            # and are not labels themselves.
+            if len(line1) < 2 or len(line2) < 2 or len(line3) < 2:
+                continue
+
+            # If line1 or line2 contain common labels, it's not our name block
+            labels = [r'PASSPORT', r'REPUBLIC', r'PILIPINAS', r'PHILIPPINES', r'PANGALAN', r'APELYIDO']
+            if any(re.search(l, line1) or re.search(l, line2) for l in labels):
+                continue
+
+            # If line 3 looks like a date or a single character (Sex), it's not the middle name
+            if any(char.isdigit() for char in line3) or len(line3.replace(' ', '')) < 2:
+                continue
+
+            # If line1 and line2 don't have digits, they are good candidates for Surname/Given Names
+            if not any(char.isdigit() for char in line1) and not any(char.isdigit() for char in line2):
+                 if debug: print(f"  DEBUG: Positional Fallback candidate found at [{i}]: '{line1}', '{line2}' -> Middle: '{line3}'")
+                 return line3
+
+        return ""
 
     def _extract_middle_name(self, raw_text_lines, debug=True):
         """Extracts middle name based on common labels using fuzzy matching."""
