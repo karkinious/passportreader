@@ -113,12 +113,6 @@ class OCREngine:
             elif line1.startswith('P<P') and not line1.startswith('P<PH') and not line1.startswith('P<PL'):
                 mrz_lines[0] = 'P<PHL' + line1[3:]
 
-        # Fallback for PHL passports if label search failed
-        if is_phl and not middle_name:
-            # We already have surname and given_names if we can parse MRZ,
-            # but we might need them early here.
-            middle_name = self._extract_middle_name_positional(lines_with_spaces)
-
         extracted_data = {
             'raw_text': lines,
             'raw_text_lines': lines_with_spaces,
@@ -147,11 +141,19 @@ class OCREngine:
                 try:
                     checker = checker_class(mrz_text)
                     fields = checker.fields()
+                    surname = getattr(fields, 'surname', '')
+                    given_names = getattr(fields, 'name', '')
+
+                    # Fallback for PHL passports if label search failed
+                    if is_phl and not middle_name:
+                        middle_name = self._extract_middle_name_positional(lines_with_spaces, surname_anchor=surname, given_anchor=given_names)
+                        extracted_data['middle_name'] = middle_name
+
                     extracted_data['parsed_mrz'] = self._format_checker_fields(fields, lines_with_spaces, middle_name=middle_name)
                     if extracted_data['parsed_mrz']:
-                        surname = extracted_data['parsed_mrz'].get('surname', '')
-                        given_names = extracted_data['parsed_mrz'].get('given_names', '')
-                        place_of_birth = self._extract_place_of_birth(lines_with_spaces, surname=surname, given_names=given_names)
+                        surname_corr = extracted_data['parsed_mrz'].get('surname', '')
+                        given_corr = extracted_data['parsed_mrz'].get('given_names', '')
+                        place_of_birth = self._extract_place_of_birth(lines_with_spaces, surname=surname_corr, given_names=given_corr)
                         extracted_data['parsed_mrz']['place_of_birth'] = place_of_birth
                     break
                 except:
@@ -159,42 +161,58 @@ class OCREngine:
 
         return extracted_data
 
-    def _extract_middle_name_positional(self, raw_text_lines, debug=True):
+    def _extract_middle_name_positional(self, raw_text_lines, surname_anchor="", given_anchor="", debug=True):
         """
         Fallback for PHL passports where the label might be missed or mangled.
         Looks for the line immediately following Surname and Given Names.
+        Uses MRZ-parsed names as anchors to find the correct name block.
         """
+        if debug:
+            print(f"  DEBUG: Positional Search Anchors - Surname: '{surname_anchor}', Given: '{given_anchor}'")
+
         lines = [l.strip().upper() for l in raw_text_lines if l.strip()]
+
+        # Clean anchors - don't remove '<' yet, use them as delimiters
+        s_anchor = surname_anchor.upper().replace('<', ' ').strip()
+        g_anchor = given_anchor.upper().replace('<', ' ').strip()
+
+        if not s_anchor or not g_anchor:
+            return ""
 
         # In PHL passports, the layout is usually:
         # [Index N] Surname
         # [Index N+1] Given Names
         # [Index N+2] Middle Name
 
-        # We look for a pattern where two consecutive lines are likely Surname and Given Names
+        s_parts = [p.strip() for p in s_anchor.split() if p.strip()]
+        g_parts = [p.strip() for p in g_anchor.split() if p.strip()]
+
         for i in range(len(lines) - 2):
             line1 = lines[i]
             line2 = lines[i+1]
             line3 = lines[i+2]
 
-            # Simple heuristic: Surname and Given Names are usually single or multi-word alpha strings
-            # and are not labels themselves.
-            if len(line1) < 2 or len(line2) < 2 or len(line3) < 2:
-                continue
+            # Match Surname (line1)
+            # Check if at least one part of the surname is in the line
+            match1 = any(p in line1 for p in s_parts) if s_parts else False
 
-            # If line1 or line2 contain common labels, it's not our name block
-            labels = [r'PASSPORT', r'REPUBLIC', r'PILIPINAS', r'PHILIPPINES', r'PANGALAN', r'APELYIDO']
-            if any(re.search(l, line1) or re.search(l, line2) for l in labels):
-                continue
+            # Match Given Names (line2)
+            # Strip punctuation like dots from the OCR line for better matching
+            line2_clean = re.sub(r'[^A-Z\s]', '', line2)
+            match2 = any(p in line2_clean for p in g_parts) if g_parts else False
+            if match1 and match2:
+                # Validate line 3 (potential Middle Name)
+                # Should not be a label, should not have digits, should not be too short
+                labels = [r'PLACE', r'BIRTH', r'SEX', r'NATIONALITY', r'DATE', r'PASSPORT', r'REPUBLIC', r'PHL']
+                if any(re.search(l, line3) for l in labels):
+                    continue
+                if any(char.isdigit() for char in line3):
+                    continue
+                if len(line3.replace(' ', '')) < 2:
+                    continue
 
-            # If line 3 looks like a date or a single character (Sex), it's not the middle name
-            if any(char.isdigit() for char in line3) or len(line3.replace(' ', '')) < 2:
-                continue
-
-            # If line1 and line2 don't have digits, they are good candidates for Surname/Given Names
-            if not any(char.isdigit() for char in line1) and not any(char.isdigit() for char in line2):
-                 if debug: print(f"  DEBUG: Positional Fallback candidate found at [{i}]: '{line1}', '{line2}' -> Middle: '{line3}'")
-                 return line3
+                if debug: print(f"  DEBUG: Positional Fallback (Anchored) found at [{i}]: '{line1}', '{line2}' -> Middle: '{line3}'")
+                return line3
 
         return ""
 
